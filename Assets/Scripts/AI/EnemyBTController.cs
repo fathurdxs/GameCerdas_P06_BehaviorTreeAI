@@ -31,6 +31,27 @@ public class EnemyBTController : MonoBehaviour
     [Header("Debug")]
     [SerializeField] private string currentAction = "None";
 
+    // ------------------------------------------------------------
+    // Toggle eksperimen modul bagian 57-59.
+    //
+    // Ketiganya OFF secara default, sehingga struktur Behavior Tree
+    // yang terbentuk persis sama dengan modul bagian 31.
+    //
+    // Setelah mengubah toggle saat Play, jalankan context menu
+    // "Rebuild Behavior Tree" supaya pohonnya disusun ulang.
+    // ------------------------------------------------------------
+
+    [Header("Eksperimen (modul bagian 57-59)")]
+
+    // Bagian 57: Attack diletakkan sebelum Flee di Selector.
+    [SerializeField] private bool eksperimen1_AttackSebelumFlee = false;
+
+    // Bagian 58: Condition IsPlayerInAttackRange dihapus.
+    [SerializeField] private bool eksperimen2_TanpaAttackRange = false;
+
+    // Bagian 59: CooldownDecorator dilepas, Attack langsung.
+    [SerializeField] private bool eksperimen3_TanpaCooldown = false;
+
     private NavMeshAgent agent;
     private BTNode rootNode;
 
@@ -78,21 +99,32 @@ public class EnemyBTController : MonoBehaviour
         BTNode attackAction =
             new ActionNode(AttackPlayer);
 
-        BTNode attackWithCooldown =
-            new CooldownDecorator(
-                attackAction,
-                attackCooldown
-            );
+        // Eksperimen 3 (bagian 59): tanpa Decorator, Attack
+        // dipanggil setiap frame.
+        BTNode attackLeaf =
+            eksperimen3_TanpaCooldown
+                ? attackAction
+                : new CooldownDecorator(
+                    attackAction,
+                    attackCooldown
+                  );
+
+        List<BTNode> attackChildren = new List<BTNode>();
+
+        attackChildren.Add(new ConditionNode(CanSeePlayer));
+
+        // Eksperimen 2 (bagian 58): Condition jarak serang dilepas,
+        // sehingga Attack bisa terjadi dari jarak sangat jauh.
+        if (!eksperimen2_TanpaAttackRange)
+        {
+            attackChildren.Add(
+                new ConditionNode(IsPlayerInAttackRange));
+        }
+
+        attackChildren.Add(attackLeaf);
 
         BTNode attackSequence =
-            new SequenceNode(
-                new List<BTNode>
-                {
-                    new ConditionNode(CanSeePlayer),
-                    new ConditionNode(IsPlayerInAttackRange),
-                    attackWithCooldown
-                }
-            );
+            new SequenceNode(attackChildren);
 
         // ------------------------------
         // CHASE
@@ -118,16 +150,53 @@ public class EnemyBTController : MonoBehaviour
         // ROOT SELECTOR
         // ------------------------------
 
-        rootNode =
-            new SelectorNode(
-                new List<BTNode>
-                {
-                    fleeSequence,
-                    attackSequence,
-                    chaseSequence,
-                    patrolAction
-                }
-            );
+        List<BTNode> rootChildren = new List<BTNode>();
+
+        // Eksperimen 1 (bagian 57): urutan Flee dan Attack ditukar,
+        // sehingga Attack punya prioritas lebih tinggi.
+        if (eksperimen1_AttackSebelumFlee)
+        {
+            rootChildren.Add(attackSequence);
+            rootChildren.Add(fleeSequence);
+        }
+        else
+        {
+            rootChildren.Add(fleeSequence);
+            rootChildren.Add(attackSequence);
+        }
+
+        rootChildren.Add(chaseSequence);
+        rootChildren.Add(patrolAction);
+
+        rootNode = new SelectorNode(rootChildren);
+
+        LogTreeConfiguration();
+    }
+
+    // Cetak konfigurasi pohon supaya terlihat eksperimen mana
+    // yang sedang aktif (berguna untuk lampiran laporan).
+    private void LogTreeConfiguration()
+    {
+        string urutan =
+            eksperimen1_AttackSebelumFlee
+                ? "Attack > Flee > Chase > Patrol  (Eksperimen 1)"
+                : "Flee > Attack > Chase > Patrol  (modul)";
+
+        string kondisiAttack =
+            eksperimen2_TanpaAttackRange
+                ? "CanSeePlayer saja  (Eksperimen 2)"
+                : "CanSeePlayer + IsPlayerInAttackRange  (modul)";
+
+        string cooldown =
+            eksperimen3_TanpaCooldown
+                ? "tanpa Decorator  (Eksperimen 3)"
+                : "CooldownDecorator " + attackCooldown + "s  (modul)";
+
+        Debug.Log(
+            name + " Behavior Tree dibangun:"
+            + "\n  Urutan Selector : " + urutan
+            + "\n  Condition Attack: " + kondisiAttack
+            + "\n  Attack          : " + cooldown);
     }
 
     // ==================================================
@@ -364,6 +433,67 @@ public class EnemyBTController : MonoBehaviour
     private void ResetHealth()
     {
         currentHealth = maxHealth;
+    }
+
+    // ==================================================
+    // EKSPERIMEN (modul bagian 57-61)
+    // ==================================================
+
+    // Panggil ini setelah mengubah toggle eksperimen atau
+    // Attack Cooldown saat Play. CooldownDecorator menyimpan
+    // nilai cooldown saat dibuat, jadi pohonnya harus
+    // disusun ulang supaya perubahan ikut terpakai.
+    [ContextMenu("Rebuild Behavior Tree")]
+    private void RebuildBehaviorTree()
+    {
+        BuildBehaviorTree();
+    }
+
+    [ContextMenu("Preset: Enemy Normal (modul)")]
+    private void PresetNormal()
+    {
+        visionRange = 10f;
+        visionAngle = 90f;
+        attackRange = 2f;
+        attackCooldown = 1.5f;
+        lowHealthThreshold = 30;
+        patrolSpeed = 2f;
+        chaseSpeed = 4f;
+        fleeSpeed = 5f;
+
+        eksperimen1_AttackSebelumFlee = false;
+        eksperimen2_TanpaAttackRange = false;
+        eksperimen3_TanpaCooldown = false;
+
+        BuildBehaviorTree();
+    }
+
+    // Modul bagian 60.
+    [ContextMenu("Preset: Enemy Aggressive (bagian 60)")]
+    private void PresetAggressive()
+    {
+        visionRange = 15f;
+        visionAngle = 150f;
+        attackRange = 2.5f;
+        attackCooldown = 0.8f;
+        lowHealthThreshold = 15;
+        chaseSpeed = 5f;
+
+        BuildBehaviorTree();
+    }
+
+    // Modul bagian 61.
+    [ContextMenu("Preset: Enemy Coward (bagian 61)")]
+    private void PresetCoward()
+    {
+        visionRange = 10f;
+        visionAngle = 90f;
+        attackCooldown = 2f;
+        lowHealthThreshold = 70;
+        chaseSpeed = 3f;
+        fleeSpeed = 6f;
+
+        BuildBehaviorTree();
     }
 
     // ==================================================
