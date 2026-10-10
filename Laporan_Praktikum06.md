@@ -115,8 +115,29 @@ sama dengan langkah manual modul bagian 9–41.
 
 ## Cara uji (modul bagian 42–48)
 
-Select `Enemy` di Hierarchy sebelum Play dan biarkan tetap terpilih — gizmo Vision Range dan
-Attack Range hanya muncul untuk objek yang ter-select. Amati field **Current Action** di Inspector.
+Select `Enemy` di Hierarchy sebelum Play dan biarkan tetap terpilih — gizmo hanya muncul untuk
+objek yang ter-select. Amati field **Current Action** di Inspector, atau label di atas kepala
+Enemy di Scene View.
+
+Legenda gizmo `Enemy`:
+
+| Warna | Bentuk | Arti |
+|---|---|---|
+| Kuning | bola rangka + kerucut terisi | Vision Range dan batas Field of View |
+| Merah | bola rangka | Attack Range |
+| Biru | garis antar kubus | rute patrol; kubus terisi = waypoint yang sedang dituju |
+| Magenta | garis + kubus | arah ke SafePoint |
+| Hijau | garis mata → Player | Player terlihat |
+| Merah | garis mata → Player | Player terhalang obstacle atau di luar FOV |
+| — | bola di atas kepala | indikator state: biru PATROL, oranye CHASE, merah ATTACK, magenta FLEE |
+
+Garis hijau/merah ke Player inilah bukti paling langsung untuk Pengujian 5 dan 6 — saat Player
+di balik Wall atau di belakang punggung Enemy, garisnya berubah merah tanpa perlu membaca
+Inspector. Warna gizmo bisa diubah di header **Gizmo** pada komponen; matikan `Show Fov Cone`
+kalau isi kerucutnya mengganggu saat mengambil screenshot.
+
+`EnemyUtility` memakai legenda yang sama, ditambah label empat skor Utility di atas kepalanya
+dan indikator ungu sebagai pembeda.
 
 | # | Pengujian | Langkah | Hasil yang diharapkan |
 |---|---|---|---|

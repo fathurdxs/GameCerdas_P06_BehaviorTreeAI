@@ -1,6 +1,10 @@
 using UnityEngine;
 using UnityEngine.AI;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 // ============================================================
 // Praktikum 06 - Bagian II: Utility-Based Decision AI
 // (modul bagian 64-74, dan Tugas Pengembangan 80D)
@@ -440,11 +444,10 @@ public class UtilityEnemyController : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, visionRange);
+        Vector3 position = transform.position;
 
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
+        Color visionColor = new Color(1f, 0.92f, 0.2f);
+        Color attackColor = new Color(1f, 0.25f, 0.2f);
 
         Vector3 leftDirection =
             Quaternion.Euler(0, -visionAngle * 0.5f, 0)
@@ -454,14 +457,66 @@ public class UtilityEnemyController : MonoBehaviour
             Quaternion.Euler(0, visionAngle * 0.5f, 0)
             * transform.forward;
 
-        Gizmos.color = Color.yellow;
+#if UNITY_EDITOR
+        Handles.color = new Color(
+            visionColor.r,
+            visionColor.g,
+            visionColor.b,
+            0.12f);
 
-        Gizmos.DrawRay(
-            transform.position,
-            leftDirection * visionRange);
+        Handles.DrawSolidArc(
+            position,
+            Vector3.up,
+            leftDirection,
+            visionAngle,
+            visionRange);
+#endif
 
-        Gizmos.DrawRay(
-            transform.position,
-            rightDirection * visionRange);
+        Gizmos.color = visionColor;
+        Gizmos.DrawWireSphere(position, visionRange);
+        Gizmos.DrawRay(position, leftDirection * visionRange);
+        Gizmos.DrawRay(position, rightDirection * visionRange);
+
+        Gizmos.color = attackColor;
+        Gizmos.DrawWireSphere(position, attackRange);
+
+        if (safePoint != null)
+        {
+            Gizmos.color = new Color(1f, 0.3f, 0.9f);
+            Gizmos.DrawLine(position, safePoint.position);
+        }
+
+        if (player != null)
+        {
+            Gizmos.color =
+                canSeePlayerCached
+                    ? new Color(0.2f, 1f, 0.3f)
+                    : new Color(0.8f, 0.2f, 0.2f);
+
+            Gizmos.DrawLine(
+                position + Vector3.up * 1.5f,
+                player.position + Vector3.up * 1f);
+        }
+
+        // Indikator aksi terpilih - ungu, menandakan Utility AI.
+        Gizmos.color = new Color(0.65f, 0.3f, 0.95f);
+
+        Gizmos.DrawSphere(
+            position + Vector3.up * 2.4f,
+            0.25f);
+
+#if UNITY_EDITOR
+        // Keempat skor ditampilkan langsung di Scene View, supaya
+        // dasar keputusan Utility AI terlihat tanpa membuka Inspector.
+        Handles.color = Color.white;
+
+        Handles.Label(
+            position + Vector3.up * 3.3f,
+            "UTILITY - " + selectedAction
+            + "\nAttack  " + attackScore.ToString("F2")
+            + "\nChase   " + chaseScore.ToString("F2")
+            + "\nFlee    " + fleeScore.ToString("F2")
+            + "\nPatrol  " + patrolScore.ToString("F2"));
+#endif
     }
 }

@@ -2,6 +2,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 public class EnemyBTController : MonoBehaviour
 {
     [Header("References")]
@@ -51,6 +55,29 @@ public class EnemyBTController : MonoBehaviour
 
     // Bagian 59: CooldownDecorator dilepas, Attack langsung.
     [SerializeField] private bool eksperimen3_TanpaCooldown = false;
+
+    [Header("Gizmo")]
+
+    [SerializeField] private bool showGizmos = true;
+
+    // Isi kerucut FOV digambar semi-transparan. Matikan kalau
+    // mengganggu saat mengambil screenshot.
+    [SerializeField] private bool showFovCone = true;
+
+    [SerializeField]
+    private Color visionColor = new Color(1f, 0.92f, 0.2f);      // kuning
+
+    [SerializeField]
+    private Color attackColor = new Color(1f, 0.25f, 0.2f);      // merah
+
+    [SerializeField]
+    private Color chaseColor = new Color(1f, 0.6f, 0.1f);        // oranye
+
+    [SerializeField]
+    private Color patrolColor = new Color(0.3f, 0.7f, 1f);       // biru
+
+    [SerializeField]
+    private Color fleeColor = new Color(1f, 0.3f, 0.9f);         // magenta
 
     private NavMeshAgent agent;
     private BTNode rootNode;
@@ -502,43 +529,157 @@ public class EnemyBTController : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        // Vision Range
-        Gizmos.DrawWireSphere(
-            transform.position,
-            visionRange
-        );
+        if (!showGizmos)
+        {
+            return;
+        }
 
-        // Attack Range
-        Gizmos.DrawWireSphere(
-            transform.position,
-            attackRange
-        );
+        Vector3 position = transform.position;
 
-        // FOV direction
+        // ----------------------------------------------------
+        // Perception - kuning
+        // ----------------------------------------------------
+
         Vector3 leftDirection =
-            Quaternion.Euler(
-                0,
-                -visionAngle * 0.5f,
-                0
-            )
+            Quaternion.Euler(0, -visionAngle * 0.5f, 0)
             * transform.forward;
 
         Vector3 rightDirection =
-            Quaternion.Euler(
-                0,
-                visionAngle * 0.5f,
-                0
-            )
+            Quaternion.Euler(0, visionAngle * 0.5f, 0)
             * transform.forward;
 
-        Gizmos.DrawRay(
-            transform.position,
-            leftDirection * visionRange
-        );
+#if UNITY_EDITOR
+        // Isi kerucut FOV, supaya batas pandangnya terbaca jelas
+        // (Pengujian 6 pada modul bagian 47).
+        if (showFovCone)
+        {
+            Handles.color = new Color(
+                visionColor.r,
+                visionColor.g,
+                visionColor.b,
+                0.12f);
 
-        Gizmos.DrawRay(
-            transform.position,
-            rightDirection * visionRange
-        );
+            Handles.DrawSolidArc(
+                position,
+                Vector3.up,
+                leftDirection,
+                visionAngle,
+                visionRange);
+        }
+#endif
+
+        Gizmos.color = visionColor;
+        Gizmos.DrawWireSphere(position, visionRange);
+        Gizmos.DrawRay(position, leftDirection * visionRange);
+        Gizmos.DrawRay(position, rightDirection * visionRange);
+
+        // ----------------------------------------------------
+        // Attack Range - merah
+        // ----------------------------------------------------
+
+        Gizmos.color = attackColor;
+        Gizmos.DrawWireSphere(position, attackRange);
+
+        // ----------------------------------------------------
+        // Rute Patrol - biru
+        // ----------------------------------------------------
+
+        if (patrolPoints != null && patrolPoints.Length > 0)
+        {
+            Gizmos.color = patrolColor;
+
+            for (int i = 0; i < patrolPoints.Length; i++)
+            {
+                Transform a = patrolPoints[i];
+
+                Transform b =
+                    patrolPoints[(i + 1) % patrolPoints.Length];
+
+                if (a == null || b == null)
+                {
+                    continue;
+                }
+
+                Gizmos.DrawLine(a.position, b.position);
+                Gizmos.DrawWireCube(a.position, Vector3.one * 0.5f);
+            }
+
+            // Waypoint yang sedang dituju - kubus terisi.
+            Transform target =
+                patrolPoints[
+                    Mathf.Clamp(
+                        currentPatrolIndex,
+                        0,
+                        patrolPoints.Length - 1)];
+
+            if (target != null)
+            {
+                Gizmos.DrawCube(
+                    target.position,
+                    Vector3.one * 0.5f);
+            }
+        }
+
+        // ----------------------------------------------------
+        // SafePoint - magenta
+        // ----------------------------------------------------
+
+        if (safePoint != null)
+        {
+            Gizmos.color = fleeColor;
+            Gizmos.DrawLine(position, safePoint.position);
+
+            Gizmos.DrawWireCube(
+                safePoint.position,
+                Vector3.one * 0.7f);
+        }
+
+        // ----------------------------------------------------
+        // Garis ke Player - hijau terlihat, merah terhalang
+        // ----------------------------------------------------
+
+        if (player != null)
+        {
+            Vector3 eyePosition = position + Vector3.up * 1.5f;
+            Vector3 targetPosition = player.position + Vector3.up * 1f;
+
+            Gizmos.color =
+                CanSeePlayer()
+                    ? new Color(0.2f, 1f, 0.3f)
+                    : new Color(0.8f, 0.2f, 0.2f);
+
+            Gizmos.DrawLine(eyePosition, targetPosition);
+        }
+
+        // ----------------------------------------------------
+        // Indikator state - bola di atas kepala
+        // ----------------------------------------------------
+
+        Gizmos.color = GetStateColor();
+
+        Gizmos.DrawSphere(
+            position + Vector3.up * 2.4f,
+            0.25f);
+
+#if UNITY_EDITOR
+        Handles.color = Color.white;
+
+        Handles.Label(
+            position + Vector3.up * 2.9f,
+            currentAction);
+#endif
+    }
+
+    // Warna indikator mengikuti action yang sedang aktif.
+    private Color GetStateColor()
+    {
+        switch (currentAction)
+        {
+            case "PATROL": return patrolColor;
+            case "CHASE": return chaseColor;
+            case "ATTACK": return attackColor;
+            case "FLEE": return fleeColor;
+            default: return Color.gray;
+        }
     }
 }
