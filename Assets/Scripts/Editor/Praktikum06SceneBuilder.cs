@@ -188,6 +188,10 @@ public static class Praktikum06SceneBuilder
         EnemyBTController controller =
             enemy.AddComponent<EnemyBTController>();
 
+        // Visualisasi gizmo berwarna, dipisahkan dari controller
+        // supaya EnemyBTController tetap sama dengan kode modul.
+        enemy.AddComponent<EnemyGizmoVisualizer>();
+
         SetRef(controller, "player", player.transform);
         SetRef(controller, "safePoint", safePoint.transform);
         SetTransformArray(controller, "patrolPoints", waypoints);
@@ -263,6 +267,48 @@ public static class Praktikum06SceneBuilder
     }
 
     // ========================================================
+    // Menambahkan visualizer gizmo ke scene yang sudah jadi,
+    // tanpa harus membangun ulang seluruh scene.
+    // ========================================================
+
+    [MenuItem("Praktikum 06/Tambah Gizmo Visualizer ke Enemy")]
+    public static void AddGizmoVisualizer()
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        int added = 0;
+
+        foreach (EnemyBTController controller in
+                 Object.FindObjectsByType<EnemyBTController>(
+                     FindObjectsSortMode.None))
+        {
+            if (controller.GetComponent<EnemyGizmoVisualizer>() != null)
+            {
+                continue;
+            }
+
+            controller.gameObject
+                .AddComponent<EnemyGizmoVisualizer>();
+
+            added++;
+        }
+
+        if (added == 0)
+        {
+            Debug.Log(
+                "[Praktikum06] Tidak ada Enemy yang perlu " +
+                "ditambahkan visualizer.");
+            return;
+        }
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+
+        Debug.Log(
+            "[Praktikum06] EnemyGizmoVisualizer ditambahkan ke " +
+            added + " Enemy.");
+    }
+
+    // ========================================================
     // Bonus D - Enemy versi Utility AI (modul bagian 64-74, 80D)
     // ========================================================
 
@@ -305,6 +351,16 @@ public static class Praktikum06SceneBuilder
             new Color(0.65f, 0.3f, 0.95f));
 
         // Buang controller Behavior Tree, ganti versi Utility.
+        // EnemyGizmoVisualizer harus dibuang lebih dulu karena
+        // [RequireComponent] membuatnya bergantung pada controller.
+        EnemyGizmoVisualizer visualizer =
+            clone.GetComponent<EnemyGizmoVisualizer>();
+
+        if (visualizer != null)
+        {
+            Object.DestroyImmediate(visualizer);
+        }
+
         EnemyBTController bt = clone.GetComponent<EnemyBTController>();
 
         if (bt != null)
